@@ -149,7 +149,7 @@ public partial class DetailWindow : Window
         };
     }
 
-    private Grid BuildWindowRow(UsageSnapshot s, UsageWindow? w, WindowKind kind, DateTimeOffset nowUtc)
+    private FrameworkElement BuildWindowRow(UsageSnapshot s, UsageWindow? w, WindowKind kind, DateTimeOffset nowUtc)
     {
         var grid = new Grid { Margin = new Thickness(0, 6, 0, 0) };
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(52) });
@@ -185,7 +185,33 @@ public partial class DetailWindow : Window
         Grid.SetColumn(value, 2);
         grid.Children.Add(value);
 
-        return grid;
+        var reset = ResetText(w, nowUtc);
+        if (reset.Length == 0) return grid;
+
+        var stack = new StackPanel();
+        stack.Children.Add(grid);
+        stack.Children.Add(new TextBlock
+        {
+            Text = reset,
+            FontSize = 10.5,
+            Foreground = Gray,
+            Margin = new Thickness(54, 1, 0, 0), // align under the bar
+        });
+        return stack;
+    }
+
+    private static string ResetText(UsageWindow? w, DateTimeOffset nowUtc)
+    {
+        if (w?.ResetsAt is not { } r) return "";
+        var local = r.ToLocalTime();
+        var rem = r - nowUtc;
+        if (rem <= TimeSpan.Zero) return $"リセット済（{local:MM/dd HH:mm}）";
+
+        string relative = rem.TotalHours < 1 ? $"あと {rem.Minutes}分"
+            : rem.TotalDays < 1 ? $"あと {(int)rem.TotalHours}時間{rem.Minutes}分"
+            : $"あと {(int)rem.TotalDays}日{rem.Hours}時間";
+
+        return $"{local:MM/dd HH:mm} にリセット（{relative}）";
     }
 
     private static Grid BuildBar(double? pct, Severity sev)
