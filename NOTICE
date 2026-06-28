@@ -1,0 +1,17 @@
+TokenWatch
+Copyright 2026 takagiko
+
+This product includes software developed by takagiko.
+
+Licensed under the Apache License, Version 2.0. See the LICENSE file.
+
+---
+
+TokenWatch is an independent, unofficial tool. It is not affiliated with,
+endorsed by, or sponsored by Anthropic or OpenAI. "Claude", "Claude Code",
+"Codex", and related marks belong to their respective owners.
+
+This software reads usage data from the user's own local Claude Code / Codex
+configuration and queries each provider's web endpoints using the user's own
+authenticated session. Those endpoints are undocumented and may change at any
+time.

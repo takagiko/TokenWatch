@@ -1,0 +1,34 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TokenWatch.Core", "TokenWatch.Core\TokenWatch.Core.csproj", "{5251019A-7839-476B-9C43-02906D9D5C3F}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TokenWatch.Cli", "TokenWatch.Cli\TokenWatch.Cli.csproj", "{F181A212-1E42-42E0-B048-99B0553B58C8}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TokenWatch.App", "TokenWatch.App\TokenWatch.App.csproj", "{109670A5-5B74-482F-BB81-9154855AE641}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{5251019A-7839-476B-9C43-02906D9D5C3F}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{5251019A-7839-476B-9C43-02906D9D5C3F}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{5251019A-7839-476B-9C43-02906D9D5C3F}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{5251019A-7839-476B-9C43-02906D9D5C3F}.Release|Any CPU.Build.0 = Release|Any CPU
+		{F181A212-1E42-42E0-B048-99B0553B58C8}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{F181A212-1E42-42E0-B048-99B0553B58C8}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{F181A212-1E42-42E0-B048-99B0553B58C8}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{F181A212-1E42-42E0-B048-99B0553B58C8}.Release|Any CPU.Build.0 = Release|Any CPU
+		{109670A5-5B74-482F-BB81-9154855AE641}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{109670A5-5B74-482F-BB81-9154855AE641}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{109670A5-5B74-482F-BB81-9154855AE641}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{109670A5-5B74-482F-BB81-9154855AE641}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+EndGlobal
