@@ -19,9 +19,17 @@ public partial class DetailWindow : Window
     private static readonly Brush CardBg = Hex("#FFFFFF");
     private static readonly Brush Track = Hex("#E6E6E6");
 
+    // Provider brand accents for the card titles.
+    private static readonly Brush ClaudeAccent = Hex("#D97757"); // Claude coral/orange
+    private static readonly Brush CodexAccent = Hex("#3B82F6");  // Codex blue
+
+    private static Brush ProviderBrush(ProviderId p) =>
+        p == ProviderId.ClaudeCode ? ClaudeAccent : CodexAccent;
+
     private readonly Func<Task> _onRefresh;
     private readonly Action _onExit;
     private bool _forceClose;
+    private bool _pinned;
 
     public DateTime LastHiddenUtc { get; private set; } = DateTime.MinValue;
 
@@ -39,6 +47,10 @@ public partial class DetailWindow : Window
             finally { RefreshButton.IsEnabled = true; StatusText.Text = ""; }
         };
         ExitButton.Click += (_, _) => _onExit();
+
+        // Pin = stay open on top (don't auto-hide when focus is lost). Default off.
+        PinToggle.Checked += (_, _) => _pinned = true;
+        PinToggle.Unchecked += (_, _) => _pinned = false;
     }
 
     public void Update(IReadOnlyList<UsageSnapshot> snaps, DateTimeOffset now)
@@ -80,7 +92,7 @@ public partial class DetailWindow : Window
     protected override void OnDeactivated(EventArgs e)
     {
         base.OnDeactivated(e);
-        if (IsVisible) HideFlyout();
+        if (!_pinned && IsVisible) HideFlyout(); // pinned windows stay open
     }
 
     protected override void OnClosing(CancelEventArgs e)
@@ -99,9 +111,9 @@ public partial class DetailWindow : Window
         panel.Children.Add(new TextBlock
         {
             Text = Formatting.ProviderName(s.Provider),
-            FontWeight = FontWeights.SemiBold,
+            FontWeight = FontWeights.Bold,
             FontSize = 13,
-            Foreground = Ink,
+            Foreground = ProviderBrush(s.Provider),
         });
 
         foreach (var kind in new[] { WindowKind.FiveHour, WindowKind.Weekly })

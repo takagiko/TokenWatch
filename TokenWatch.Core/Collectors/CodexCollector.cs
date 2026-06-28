@@ -42,23 +42,15 @@ public sealed class CodexCollector : IUsageCollector
 
         if (Directory.Exists(_sessionsRoot))
         {
-            // Newest files first so the very first rate_limits we see is current.
-            var files = Directory.EnumerateFiles(_sessionsRoot, "rollout-*.jsonl", SearchOption.AllDirectories)
-                .Select(p => new FileInfo(p))
-                .OrderByDescending(f => f.LastWriteTimeUtc)
-                .ToList();
-
-            // Scan files touched within the weekly window, plus always the newest
-            // file (for current rate_limits even if the account has been idle).
-            var weekAgo = now.AddDays(-8); // small margin over 7d
-            foreach (var file in files)
+            // Scan every rollout file. We can't filter by file mtime: a long-running
+            // session is appended in place, and Windows reports a stale last-write
+            // time for a file that is still held open — so an mtime filter would skip
+            // exactly the active session. Reading is cheap because ReadTokenEvents
+            // only JSON-parses lines that contain a token_count event.
+            foreach (var path in Directory.EnumerateFiles(_sessionsRoot, "rollout-*.jsonl", SearchOption.AllDirectories))
             {
                 ct.ThrowIfCancellationRequested();
-                bool isNewest = ReferenceEquals(file, files[0]);
-                if (!isNewest && file.LastWriteTimeUtc < weekAgo.UtcDateTime)
-                    break; // older than we care about; list is sorted desc
-
-                foreach (var (ts, usage, rl) in ReadTokenEvents(file.FullName, ct))
+                foreach (var (ts, usage, rl) in ReadTokenEvents(path, ct))
                 {
                     if (usage is not null)
                     {
@@ -112,21 +104,43 @@ public sealed class CodexCollector : IUsageCollector
     private static IEnumerable<(DateTimeOffset Ts, TokenTotals? Usage, RateLimits? Rl)> ReadTokenEvents(
         string path, CancellationToken ct)
     {
-        IEnumerable<string> lines;
-        try { lines = File.ReadLines(path); }
-        catch (IOException) { yield break; }
-
-        foreach (var line in lines)
+        // FileShare.ReadWrite so we can read a session file Codex is still appending to.
+        StreamReader reader;
+        try
         {
-            ct.ThrowIfCancellationRequested();
-            if (string.IsNullOrWhiteSpace(line)) continue;
-
-            (DateTimeOffset, TokenTotals?, RateLimits?)? parsed;
-            try { parsed = ParseLine(line); }
-            catch (JsonException) { continue; }
-
-            if (parsed is { } p) yield return p;
+            reader = new StreamReader(new FileStream(
+                path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite));
         }
+        catch (IOException) { yield break; }
+        catch (UnauthorizedAccessException) { yield break; }
+
+        using (reader)
+        {
+            while (true)
+            {
+                string? line = SafeReadLine(reader);
+                if (line is null) break; // EOF or read error
+
+                ct.ThrowIfCancellationRequested();
+                // Fast path: only token_count events carry usage and rate_limits,
+                // so skip the (large) conversation-content lines without parsing JSON.
+                if (line.Length == 0 || !line.Contains("token_count", StringComparison.Ordinal))
+                    continue;
+
+                (DateTimeOffset, TokenTotals?, RateLimits?)? parsed;
+                try { parsed = ParseLine(line); }
+                catch (JsonException) { continue; }
+                catch (InvalidOperationException) { continue; } // unexpected null/shape
+
+                if (parsed is { } p) yield return p;
+            }
+        }
+    }
+
+    private static string? SafeReadLine(StreamReader reader)
+    {
+        try { return reader.ReadLine(); }
+        catch (IOException) { return null; }
     }
 
     private static (DateTimeOffset, TokenTotals?, RateLimits?)? ParseLine(string line)
@@ -134,7 +148,9 @@ public sealed class CodexCollector : IUsageCollector
         using var doc = JsonDocument.Parse(line);
         var root = doc.RootElement;
 
-        if (!root.TryGetProperty("payload", out var payload)) return null;
+        if (root.ValueKind != JsonValueKind.Object) return null;
+        if (!root.TryGetProperty("payload", out var payload) || payload.ValueKind != JsonValueKind.Object)
+            return null;
         if (!payload.TryGetProperty("type", out var pt) || pt.GetString() != "token_count")
             return null;
 
@@ -144,8 +160,8 @@ public sealed class CodexCollector : IUsageCollector
             : DateTimeOffset.UtcNow;
 
         TokenTotals? usage = null;
-        if (payload.TryGetProperty("info", out var info)
-            && info.TryGetProperty("last_token_usage", out var last))
+        if (payload.TryGetProperty("info", out var info) && info.ValueKind == JsonValueKind.Object
+            && info.TryGetProperty("last_token_usage", out var last) && last.ValueKind == JsonValueKind.Object)
         {
             long input = GetLong(last, "input_tokens");
             long output = GetLong(last, "output_tokens");

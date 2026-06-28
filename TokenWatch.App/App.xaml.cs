@@ -175,7 +175,8 @@ public partial class App
                 new UsageWindow(WindowKind.FiveHour, 72, now.AddHours(3).AddMinutes(30)),
                 new UsageWindow(WindowKind.Weekly, 55, now.AddDays(5)),
             ],
-            TokenTotals.Zero, TokenTotals.Zero,
+            new TokenTotals(8_400_000, 110_000, 0, 7_900_000, 8_510_000),
+            new TokenTotals(170_000_000, 1_900_000, 0, 158_000_000, 171_900_000),
             new TokenTotals(327_000_000, 2_200_000, 0, 300_000_000, 329_200_000),
             Note: "ライブ (chatgpt.com API)", LimitObservedAt: now);
 
