@@ -1,6 +1,8 @@
 using System.ComponentModel;
+using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Interop;
 using System.Windows.Media;
 using TokenWatch.Core.Models;
 using Brush = System.Windows.Media.Brush;
@@ -30,8 +32,12 @@ public partial class DetailWindow : Window
     private readonly Action _onExit;
     private bool _forceClose;
     private bool _pinned;
+    private DateTime _shownAtUtc = DateTime.MinValue;
 
     public DateTime LastHiddenUtc { get; private set; } = DateTime.MinValue;
+
+    [DllImport("user32.dll")]
+    private static extern bool SetForegroundWindow(IntPtr hWnd);
 
     public DetailWindow(Func<Task> onRefresh, Action onExit)
     {
@@ -51,6 +57,14 @@ public partial class DetailWindow : Window
         // Pin = stay open on top (don't auto-hide when focus is lost). Default off.
         PinToggle.Checked += (_, _) => _pinned = true;
         PinToggle.Unchecked += (_, _) => _pinned = false;
+
+        // Opacity slider — see the window behind the dashboard.
+        OpacityValueText.Text = $"{OpacitySlider.Value * 100:0}%";
+        OpacitySlider.ValueChanged += (_, _) =>
+        {
+            Opacity = OpacitySlider.Value;
+            OpacityValueText.Text = $"{OpacitySlider.Value * 100:0}%";
+        };
     }
 
     public void Update(IReadOnlyList<UsageSnapshot> snaps, DateTimeOffset now)
@@ -74,7 +88,13 @@ public partial class DetailWindow : Window
         var wa = SystemParameters.WorkArea;
         Left = wa.Right - ActualWidth - 12;
         Top = wa.Bottom - ActualHeight - 12;
+        _shownAtUtc = DateTime.UtcNow;
         Activate();
+
+        // A tray click leaves the shell in the foreground; force this window to the
+        // front so it doesn't immediately deactivate and hide.
+        var hwnd = new WindowInteropHelper(this).Handle;
+        if (hwnd != IntPtr.Zero) SetForegroundWindow(hwnd);
     }
 
     public void HideFlyout()
@@ -92,7 +112,10 @@ public partial class DetailWindow : Window
     protected override void OnDeactivated(EventArgs e)
     {
         base.OnDeactivated(e);
-        if (!_pinned && IsVisible) HideFlyout(); // pinned windows stay open
+        if (_pinned || !IsVisible) return; // pinned windows stay open
+        // Ignore the spurious deactivation that can fire right after a tray-click show.
+        if ((DateTime.UtcNow - _shownAtUtc).TotalMilliseconds < 350) return;
+        HideFlyout();
     }
 
     protected override void OnClosing(CancelEventArgs e)

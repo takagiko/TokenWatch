@@ -14,14 +14,19 @@ namespace TokenWatch.App;
 /// </summary>
 public sealed class TrayController : IDisposable
 {
+    // Stable identity so Windows 11 remembers the icon's taskbar placement across restarts.
+    private static readonly Guid TrayGuid = new("6B1D9E2A-7C34-4F58-9A0B-3E5C7D2F1A84");
+
     private readonly AppSettings _settings = AppSettings.Load();
-    private readonly NotifyIcon _icon = new();
+    private readonly TrayIcon _trayIcon = new(TrayGuid);
+    private readonly ContextMenuStrip _menu = new();
     private readonly ToastManager _toasts = new();
     private readonly ClaudeUsageService _claude = new();
     private readonly UsageService _service;
     private readonly DispatcherTimer _timer;
     private DetailWindow? _window;
     private Icon? _ownedIcon;
+    private string _tipText = "TokenWatch";
     private bool _refreshing;
     private IReadOnlyList<UsageSnapshot> _last = [];
 
@@ -36,15 +41,10 @@ public sealed class TrayController : IDisposable
         Formatting.WarnPercent = _settings.WarnPercent;
         Formatting.CriticalPercent = _settings.CriticalPercent;
 
-        SetIcon("··", Severity.Unknown);
-        _icon.Text = "TokenWatch";
-        _icon.Visible = true;
-
-        var menu = new ContextMenuStrip();
-        menu.Items.Add("詳細を表示", null, (_, _) => ShowWindow());
-        menu.Items.Add("今すぐ更新", null, async (_, _) => await RefreshAsync());
-        menu.Items.Add("Claude にログイン", null, async (_, _) => await LoginClaudeAsync());
-        menu.Items.Add(new ToolStripSeparator());
+        _menu.Items.Add("詳細を表示", null, (_, _) => ShowWindow());
+        _menu.Items.Add("今すぐ更新", null, async (_, _) => await RefreshAsync());
+        _menu.Items.Add("Claude にログイン", null, async (_, _) => await LoginClaudeAsync());
+        _menu.Items.Add(new ToolStripSeparator());
 
         var autoStart = new ToolStripMenuItem("Windows 起動時に自動起動")
         {
@@ -57,7 +57,7 @@ public sealed class TrayController : IDisposable
             _settings.StartWithWindows = autoStart.Checked;
             _settings.Save();
         };
-        menu.Items.Add(autoStart);
+        _menu.Items.Add(autoStart);
 
         var notify = new ToolStripMenuItem("しきい値超えを通知")
         {
@@ -69,14 +69,16 @@ public sealed class TrayController : IDisposable
             _settings.NotificationsEnabled = notify.Checked;
             _settings.Save();
         };
-        menu.Items.Add(notify);
+        _menu.Items.Add(notify);
 
-        menu.Items.Add("設定フォルダを開く", null, (_, _) => OpenSettingsFolder());
-        menu.Items.Add(new ToolStripSeparator());
-        menu.Items.Add("終了", null, (_, _) => ExitApp());
-        _icon.ContextMenuStrip = menu;
+        _menu.Items.Add("設定フォルダを開く", null, (_, _) => OpenSettingsFolder());
+        _menu.Items.Add(new ToolStripSeparator());
+        _menu.Items.Add("終了", null, (_, _) => ExitApp());
 
-        _icon.MouseClick += (_, e) => { if (e.Button == MouseButtons.Left) ToggleWindow(); };
+        _trayIcon.LeftClick += ToggleWindow;
+        _trayIcon.RightClick += pt => _trayIcon.ShowMenu(_menu, pt);
+
+        SetIcon("··", Severity.Unknown); // performs the initial Shell_NotifyIcon add
 
         _timer = new DispatcherTimer
         {
@@ -210,7 +212,8 @@ public sealed class TrayController : IDisposable
 
         var text = sb.ToString();
         if (text.Length > 127) text = text[..127];
-        _icon.Text = text.Length == 0 ? "TokenWatch" : text;
+        _tipText = text.Length == 0 ? "TokenWatch" : text;
+        if (_ownedIcon is not null) _trayIcon.Update(_ownedIcon, _tipText);
     }
 
     private static string Pct(UsageSnapshot s, WindowKind kind, DateTimeOffset now)
@@ -269,15 +272,16 @@ public sealed class TrayController : IDisposable
     private void SetIcon(string text, Severity sev)
     {
         var newIcon = IconRenderer.Render(text, sev);
-        _icon.Icon = newIcon;
-        _ownedIcon?.Dispose();
+        var old = _ownedIcon;
         _ownedIcon = newIcon;
+        _trayIcon.Update(newIcon, _tipText); // keep the handle alive until the next update
+        old?.Dispose();
     }
 
     private void ExitApp()
     {
         _timer.Stop();
-        _icon.Visible = false;
+        _trayIcon.Dispose();
         _toasts.CloseAll();
         _window?.ForceClose();
         _claude.Shutdown();
@@ -287,8 +291,8 @@ public sealed class TrayController : IDisposable
     public void Dispose()
     {
         _timer.Stop();
-        _icon.Visible = false;
-        _icon.Dispose();
+        _trayIcon.Dispose();
+        _menu.Dispose();
         _ownedIcon?.Dispose();
     }
 }
